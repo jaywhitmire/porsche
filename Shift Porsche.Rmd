@@ -1,0 +1,357 @@
+---
+title: "Shift Porsche"
+author: "Jay Whitmire"
+date: "10/29/2018"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(broom)
+library(scales)
+```
+
+## Load and Examine Data
+
+```{r}
+porsche <- read.csv("https://raw.githubusercontent.com/jaywhitmire/porsche/master/porscheListings.csv")
+
+porsche <- porsche %>% 
+  mutate(experiment_group = factor(experiment_group, levels = c( "A", "B")),
+         model = factor(model, levels = c("Cayenne", "911", "Macan", "Panamera", "Boxster", "Cayman", "718 Boxster", "718 Cayman")))
+
+names(porsche)
+head(porsche)
+str(porsche)
+summary(porsche)
+
+```
+
+*** 
+# Question 1
+
+### What are the different Porsche “models” (eg. Porsche Cayenne, Porsche Panamera, etc) contained within the dataset? Which is the most common?
+
+```{r}
+
+
+unique(porsche$model)
+table(porsche$model)
+porsche %>% 
+  group_by(model) %>% 
+  summarise(Count = n()) %>% 
+  arrange(desc(Count)) %>% 
+  head(1)
+
+
+```
+
+#### The model types are the 718 Boxter, 718 Cayman, 911, Boxter, Cayenne, Cayman, Macan, and Panamera.
+
+#### The Cayenne is the most common with 630 observations in the data set.
+
+***
+
+# Question 2
+
+### What can you say quantitatively about the relationship between asking price and mileage?
+
+```{r}
+cor(porsche$mileage, porsche$asking_price)
+reg <- lm(asking_price ~ mileage, data = porsche)
+summary(reg)
+ggplot(porsche, aes(y = asking_price, x = mileage, alpha = 0.2)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(x = "Mileage", y = "Asking Price", title = "As Mileage Increases, Asking Price Tends to Decrease") +
+  scale_y_continuous(labels = dollar_format(prefix = '$'))
+
+plot(porsche$mileage, abs(resid(reg)), 
+     ylab="Residuals", xlab="Mileage", 
+     main="Residuals of our Model Decrease as Mileage Increases")
+
+ggplot(porsche, aes(y = asking_price, x = mileage, alpha = 0.1)) +
+  geom_point() +
+  geom_smooth(aes(col= model), se = FALSE, method = "lm") +
+  labs(x = "Mileage", y = "Asking Price", title = "Models Depreciate at Different Rates") +
+  scale_y_continuous(labels = dollar_format(prefix = '$'))
+
+```
+
+##### As Mileage increases, Asking Price tends to decrease.  Mileage and Asking Price are moderately negatively correlated with a correlation of -0.43.  Mileage alone accounts for 18.5% of the variation in Asking Prices.  A 1000 mile increase in mileage would result in a $696.50 decrease in Asking price on average with all other conditions the same.  This estimate will likely decrease as more variables are added to the model like Year which would be correlated with mileage.
+
+***
+
+## Question 3
+
+### What does the distribution of “asking_price” look like? How does the asking price vary across different models?
+
+
+```{r}
+
+summary(porsche$asking_price)
+
+
+inputPanel(
+
+  
+  sliderInput("n_breaks", label = "Number of Bins:",
+              min = 5, max = 100, value = 40, step = 5)
+)
+
+renderPlot({
+
+  ggplot(porsche, aes(x = asking_price)) +
+    geom_histogram(bins = input$n_breaks) +
+    scale_x_continuous(labels = dollar_format(prefix = '$'),
+                       breaks = c(0, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 2000000)) +
+    labs(x = "Asking Price", y = "Count", title = "Select Number of Bins with the Slider")
+  
+})
+
+```
+
+```{r}
+
+ggplot(porsche, aes( y = asking_price)) +
+  geom_boxplot() +
+  labs( y = "Asking Price", title = "Boxplot of Asking Prices") +
+  scale_y_continuous(labels = dollar_format(prefix = '$'))
+
+tapply(porsche$asking_price, porsche$model, summary)
+
+ggplot(porsche, aes( x = asking_price, fill = model)) +
+  geom_histogram(bins = 41) +
+  facet_grid(model~.) +
+  labs(x = "Asking Price", y = "Count", title = "Histogram of Each Model")
+
+ggplot(porsche, aes(x = model, y = asking_price)) +
+  geom_jitter(aes( col = model), alpha = 0.5) +
+  geom_boxplot(alpha = 0.1) +
+  scale_y_continuous(labels = dollar_format(prefix = '$')) +
+  labs(x = "Model", y = "Asking Price", title = "Jitter & Boxplot of Asking Price by Model")
+
+ggplot(porsche, aes(x = model, y = asking_price, fill = model)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = dollar_format(prefix = '$')) +
+  labs(x = "Model", y = "Asking Price", title = "Boxplot of Asking Price by Model")
+
+ggplot(porsche, aes(x = model, y = asking_price, fill = model)) +
+  geom_violin() +
+  scale_y_continuous(labels = dollar_format(prefix = '$')) +
+  labs(x = "Model", y = "Asking Price", title = "Violin of Asking Price by Model")
+
+ggplot(porsche, aes(x = asking_price, fill = model)) +
+  geom_density(alpha = 0.3) +
+  facet_grid(model~.) +
+  scale_x_continuous(labels = dollar_format(prefix = '$')) +
+  labs(x = "Asking Price", y = "Proportion", title = "Density Plot of Asking Price by Model", subtitle = "911s are the most expensive")
+```
+
+##### Asking Price has a mean of $67, 427 and a median of $59,990.  The histogram looks like a bell curve that skews to the right with a max price of $194,993.  The distribution of asking price varies a lot between each model.  The 911 is by far the most expensive model.  The Panamera has a very large spread with some cars among the most expensive and others among the least expensive.  The Boxster is the least expensive with an average price less than $50,000
+
+
+***
+
+## Question 4
+
+### How do the prices in California compare with the national prices?
+
+```{r}
+
+
+unique(porsche$state)
+table(porsche$state)
+
+porsche <- porsche %>% 
+  mutate(Cali = ifelse(state %in% c("CA", "CALIFORNIA"), "CA", "US"),
+         Cali = factor(Cali, levels = c('US', 'CA')))
+
+Cali <- porsche %>% 
+  filter(state %in% c("CA", "CALIFORNIA"))
+
+US <- porsche %>% 
+  filter(!state %in% c("CA", "CALIFORNIA"))
+
+
+tapply(porsche$asking_price, porsche$Cali, summary)
+
+ggplot(porsche, aes(x = Cali, y = asking_price, col = Cali)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = dollar_format(prefix = '$')) +
+  labs(x = "State", y = "Asking Price", title = "Boxplot of Asking Price by State", col = 'State')
+
+ggplot(porsche, aes(x = asking_price, col = Cali)) +
+  geom_density() +
+  scale_x_continuous(labels = dollar_format(prefix = '$')) +
+  labs(x = "Asking Price", title = "California Appears to have a Higher Proportion of Expensive Cars", col = 'State')
+
+t.test(Cali$asking_price, US$asking_price)
+
+reg1 <- lm(asking_price ~ mileage + year + model + Cali, data = porsche)
+summary(reg1)
+
+```
+
+
+
+##### Using a T-test we see California has slightly higher asking prices and there is a statisitical difference between asking prices in california versus the rest of the United States.  
+##### But if we use a multiple regression model that accounts for differences in mileage, year, and model than this statistical difference dissapears.  This suggests that state is correlated with another variable that predicts asking price.
+
+***
+
+*Tables were created with the `Rcmdr` package and `rowPercents(table(x, y))` but this package does not work with `R markdown`.
+  
+Region  | 2013 | 2014 | 2015 | 2016 | 2017 | Count
+--------|-----|------|------|------|------|------
+     CA | 6.8% | 13.0% | 27.0% | 30.3% | 23.0% | 370
+     US |  8.6% | 15.9% | 27.2% | 25.0% | 23.4% |  1342
+     
+     
+##### California has a higher proportion of 911s which may explain the difference in price.     
+     
+     
+Region  | Cayenne | 911  | Macan | Panamera | Boxster | Cayman | 718 Boxster | 718 | Cayman | Count
+-------------|------|-------|----------|---------|--------|-------------|-----|--------|-------   
+  CA    |38.6% | 28.1% |  8.4% |     8.9%   |  6.8%  |  5.4%    |     3.2%   |     0.5% |  370
+  US    |36.3% | 23.2%  | 14.8% |    10.1%   |  6.9% |   5.2%    |     1.8%  |      1.8% | 1342
+  
+***
+  
+
+
+```{r}
+ggplot(porsche, aes(x = Cali, fill = model)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = percent) +
+  labs(x = 'State', fill = 'Model', title = "Proportion of Models Sold Changes Across States", subtitle = "CA sells a higher proportion of 911s than the rest of the country")
+
+
+
+ggplot(porsche, aes(x = model, y = asking_price, col = Cali)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = dollar_format(prefix = '$')) +
+  labs(x = 'Model', y = 'Asking Price', col = 'State', title = "Boxplots of Asking Price by Model")
+
+porsche %>% 
+  group_by(Cali, model) %>% 
+  summarise(average_price = mean(asking_price)) %>% 
+  arrange(desc(average_price)) 
+
+
+```
+
+##### Since California sells proportionally more 911s which are the most expensive car, this drives their average price and is a big part of the reason california cars are more expensive than other states' cars.  California also sells relatively newer cars which further increases price.  Again, after accounting for differences in model types, the difference in asking price between California and other states is not significant.
+
+***
+
+## Question 5
+
+### We ran an A/B test on our website in an attempt to target and acquire more Porsches. Given that A was the control and B was the experiment, what do the results say about the proposed change?
+
+```{r}
+
+table(porsche$experiment_group, porsche$acquired)
+
+```
+
+  Group   | Not Acquired  | Acquired | Total | Count
+  -------|-----|------|--------|------
+  B | 44.0% | 56.0% |  100%   | 828
+  A | 48.3% | 51.7% |  100% |  884
+
+
+```{r}
+AB_results <- glm(acquired ~ experiment_group,
+                          family = "binomial",
+                          data = porsche) %>%
+  tidy()
+AB_results
+
+```
+
+##### There are some large differences in acquisition rate between models.  Might need more data to say if these are significant differences.
+
+Model    | Not Acquired |  Acquired | Total | Count
+-----------|--------------|-----------|-------|--------
+Cayenne       |   48.3%      | 51.7%    | 100%    |  630
+911           |    42.2%     | 57.8%    |   100%  |   415
+Macan         |    45.4%     | 54.6%    |   100%  |   229
+Panamera      |    54.4%     | 45.6%    |   100%  |   169
+Boxster       |    45.3%     | 54.7%    |   100%  |   117
+Cayman        |   41.1%      | 58.9%    |   100%  |    90
+718 Boxster   | 58.3%        | 41.7%    |   100%  |    36
+718 Cayman    |  19.2%       | 80.8%    |   100%  |    26
+  
+***
+  
+##### If our experimental design is correct than the differences in group assignment should just be up to chance.  Eyeballing the numbers it seems we are okay here.  
+  
+Model |    B |   A | Total | Count
+------ | ---- | --- | ----- | -------
+Cayenne |    47.6% | 52.4% |   100% |   630
+911      |   50.1% | 49.9% |   100% |   415
+Macan     |  43.2% | 56.8% |   100% |   229
+Panamera  |  49.7% | 50.3% |   100% |   169
+Boxster   |  53.0% | 47.0% |   100% |   117
+Cayman    |  45.6% | 54.4% |   100% |    90
+718 Boxster | 58.3% | 41.7% |   100% |    36
+718 Cayman |  50.0% | 50.0% |   100% |    26
+
+```{r}
+ggplot(porsche, aes(x=model, fill = acquired)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Model", y = "Acquisition Rate", fill = "Acquired?", title = "Acquisition Rates for Each Model")
+
+ggplot(porsche, aes(x=model, fill = acquired)) +
+  geom_bar(position = "dodge") +
+  labs(x = "Model", y = "Count", fill = "Acquired?", title = "Counts of Acquisition for Each Model")
+
+porscheAB <- porsche %>% 
+  mutate(acq = ifelse(acquired == 'yes', 1, 0)) %>% 
+  group_by(model, experiment_group) %>% 
+  summarize(acquisition_rate = mean(acq))
+
+ggplot(porscheAB,
+       aes(x = model,
+           y = acquisition_rate,
+           fill = experiment_group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_y_continuous(limits = c(0, 1), labels = percent) +
+  labs(x = "Model", y = "Acquisition Rate", fill = "Experiment Group", title = "Acquisition Rate for Each Model by Experiment Group")
+
+AB_results_model <- glm(acquired ~ experiment_group + model,
+                  family = "binomial",
+                  data = porsche) %>%
+  tidy()
+AB_results_model
+
+AB_results_model_int <- glm(acquired ~ experiment_group * model,
+                        family = "binomial",
+                        data = porsche) %>%
+  tidy()
+AB_results_model_int
+
+```
+
+
+##### The experiment group is not significant at 95% confidence level but is significant at a 90% confidence level.  If you look at differences in acquisition rates between model types, it seems like there are large differences in both directions.  This definitely warrants further inspection because A might be better for one model and B for another.  Or there simply might not be enough data for each model type and the large variations are by chance.  After holding model type constant, the difference in acquisition percentage for each experiment group is slightly more statistically significant then it was before but still not at a 95% confidence level.  There isn't enough data to find out if the interaction between experiment group and model are significant.  
+
+***
+
+## Question 6
+
+### Let’s say that this information was contained in a SQL table called porsche_listings, and we wanted to see the unique horsepower values for each year and model. The table that has this information is called engines and the first 5 rows are shown below. Write a SQL query that would get this information.
+
+> SELECT model, year, horsepower
+
+> FROM porsche_listings
+
+> LEFT JOIN engines ON porsche_listings.style_id = engines.style_id
+
+> GROUP BY model, year, horsepower
+
+> ORDER BY model, year, horsepower DESC
